@@ -64,7 +64,7 @@ end
 -- tag_bound[tag_id] yields number of bytes required for decoding tag payload
 -- tag_bound.bound yields number of bytes required for decoding tag
 -- tag_bound[tag_id] returns nothing
--- tag_bound.bound returns true if tag_id is not end
+-- tag_bound.bound returns true if tag_id is end
 
 local tag_bound = {}
 
