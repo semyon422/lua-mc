@@ -13,10 +13,7 @@ function Section:getY()
 end
 
 local function get_palette_bits(size)
-	if size <= 0b1111 then
-		return 4
-	end
-	return math.max(math.floor(math.log(size - 1, 2)) + 1, 4)
+	return size <= 16 and 4 or math.floor(math.log(size - 1, 2)) + 1
 end
 
 local function create_block_states(section_nbt, block_states)

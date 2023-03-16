@@ -81,4 +81,40 @@ function mc_util.to_sectors(size)
 	return math.ceil(size / 0x1000)
 end
 
+function mc_util.next_block(range, i)
+	i = i or 0
+
+	local size = #range / 2
+	assert(size == math.floor(size))
+
+	local d, v, p = range.d, range.v, range.p
+	if not d then
+		d, v, p = {}, 1, {}
+		for j = 1, size do
+			d[j] = range[j + size] - range[j] + 1
+			v = v * d[j]
+		end
+		range.d, range.v, range.p = d, v, p
+	end
+
+	if i + 1 > v then
+		return
+	end
+
+	for j = 1, size do
+		local a, b = d[1], 1
+		for k = 2, j do
+			a = a * d[k]
+			b = b * d[k - 1]
+		end
+		p[size - j + 1] = math.floor(i % a / b) + range[j]
+	end
+
+	return i + 1, unpack(p)
+end
+
+function mc_util.iter(range)
+	return mc_util.next_block, range, 0
+end
+
 return mc_util
