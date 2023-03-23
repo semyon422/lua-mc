@@ -102,13 +102,21 @@ function mc_util.next_block(range, i)
 	end
 
 	for j = 1, size do
-		local a, b = d[1], 1
-		for k = 2, j do
+		local a, b = d[size], 1
+		for k = size - 1, j, -1 do
 			a = a * d[k]
-			b = b * d[k - 1]
+			b = b * d[k + 1]
 		end
-		p[size - j + 1] = math.floor(i % a / b) + range[j]
+		p[j] = math.floor(i % a / b) + range[j]
 	end
+	-- 	for j = 1, size do
+	-- 		local a, b = d[1], 1
+	-- 		for k = 2, j do
+	-- 			a = a * d[k]
+	-- 			b = b * d[k - 1]
+	-- 		end
+	-- 		p[j] = math.floor(i % a / b) + range[j]
+	-- 	end
 
 	return i + 1, unpack(p)
 end
