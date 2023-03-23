@@ -100,4 +100,23 @@ function Chunk:setBlock(x, y, z, block_state)
 	return section:setBlock(x, y, z, block_state)
 end
 
+function Chunk:getBiome(x, y, z)
+	local section = self:getSection(math.floor(y / 16))
+	if not section then
+		return
+	end
+	return section:getBiome(x, y, z)
+end
+
+function Chunk:setBiome(x, y, z, biome)
+	local cy = math.floor(y / 16)
+	local section = self:getSection(cy)
+	if not section then
+		section = Section:new()
+		section:init(cy)
+		self:setSection(section)
+	end
+	return section:setBiome(x, y, z, biome)
+end
+
 return Chunk

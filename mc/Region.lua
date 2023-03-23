@@ -152,4 +152,14 @@ function Region:setBlock(x, y, z, block_state)
 	return chunk:setBlock(x, y, z, block_state)
 end
 
+function Region:getBiome(x, y, z)
+	local chunk = self:getChunk(mc_util.get_chunk_pos(x, z))
+	return chunk:getBiome(x, y, z)
+end
+
+function Region:setBiome(x, y, z, block_state)
+	local chunk = self:getChunk(mc_util.get_chunk_pos(x, z))
+	return chunk:setBiome(x, y, z, block_state)
+end
+
 return Region
