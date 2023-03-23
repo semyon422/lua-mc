@@ -46,7 +46,7 @@ function Chunk:decode(p)
 
 	for i, section in ipairs(self.nbt.sections) do
 		local _section = Section:new()
-		_section:setTag(section)
+		_section.nbt = section
 		sections[section.Y] = _section
 	end
 end

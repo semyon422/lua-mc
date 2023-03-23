@@ -61,7 +61,7 @@ local function create_biomes(section_nbt, biomes)
 end
 
 local function set_data_index(data, bits, index, palette_index)
-	if bits == 0 then
+	if not data or bits == 0 then
 		return
 	end
 
@@ -80,7 +80,7 @@ local function set_data_index(data, bits, index, palette_index)
 end
 
 local function get_data_index(data, bits, index)
-	if bits == 0 then
+	if not data or bits == 0 then
 		return 1
 	end
 
@@ -131,16 +131,11 @@ end
 
 function Section:init(cy)
 	local section_nbt = {{}}
+	self.nbt = section_nbt
 
 	nbt.set(section_nbt, "Y", cy, "byte")
 	create_block_states(section_nbt)
 	create_biomes(section_nbt)
-
-	self:setTag(section_nbt)
-end
-
-function Section:setTag(section_nbt)
-	self.nbt = section_nbt
 end
 
 function Section:getBlock(x, y, z)
