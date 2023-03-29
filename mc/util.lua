@@ -60,21 +60,22 @@ function mc_util.get_block_color(name)
 end
 
 local buf_out_size = 2 ^ 20
-local buf_out = ffi.new("uint8_t[?]", buf_out_size)
+local buf_uncompress_out = ffi.new("uint8_t[?]", buf_out_size)
+local buf_compress_out = ffi.new("uint8_t[?]", buf_out_size)
 
 mc_util.chunk_buffer_size = buf_out_size
 mc_util.chunk_buffer = ffi.new("uint8_t[?]", buf_out_size)
 
 function mc_util.uncompress(p, size)
 	local out_size = ffi.new("size_t[1]", buf_out_size)
-	assert(zlib.uncompress(buf_out, out_size, p, size) == 0)
-	return buf_out, tonumber(out_size[0])
+	assert(zlib.uncompress(buf_uncompress_out, out_size, p, size) == 0)
+	return buf_uncompress_out, tonumber(out_size[0])
 end
 
 function mc_util.compress(p, size)
 	local out_size = ffi.new("size_t[1]", buf_out_size)
-	assert(zlib.compress2(buf_out, out_size, p, size, -1) == 0)
-	return buf_out, tonumber(out_size[0])
+	assert(zlib.compress2(buf_compress_out, out_size, p, size, -1) == 0)
+	return buf_compress_out, tonumber(out_size[0])
 end
 
 function mc_util.to_sectors(size)
