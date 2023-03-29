@@ -393,19 +393,17 @@ function nbt.size(obj, name, tag_id)
 end
 
 function nbt.bound(p, size)
-	local offset = 0
+	local offset, ps = 0, 0
 	local bound = coroutine.wrap(tag_bound.bound)
-	local ps = 0
 	while true do
 		local s = bound(p + offset - ps)
-		ps = s
 		if not s then
-			return true
+			return offset
 		end
 		if offset + s > size then
-			return false
+			return
 		end
-		offset = offset + s
+		offset, ps = offset + s, s
 	end
 end
 
@@ -521,9 +519,10 @@ do
 	local size = nbt.size(test_tag1, "", "compound")
 	assert(size == 77)
 	local p = ffi.new("uint8_t[?]", size)
-	nbt.encode(p, test_tag1, "", "compound")
+	assert(nbt.encode(p, test_tag1, "", "compound") == 77)
 	test_tag2 = nbt.decode(p)
-	assert(nbt.bound(p, size))
+	assert(nbt.bound(p, size + 1) == size)
+	assert(nbt.bound(p, size) == size)
 	assert(not nbt.bound(p, size - 1))
 end
 
