@@ -95,14 +95,9 @@ function Region:write()
 	return true
 end
 
-function Region:getRawChunk(cx, cz)
+function Region:getRawChunk(index)
 	if self.missing then
 		return
-	end
-
-	local index = cx
-	if cz then
-		index = cx % 32 + cz % 32 * 32
 	end
 
 	local p = self.pointer + index * 4
@@ -119,6 +114,17 @@ function Region:getRawChunk(cx, cz)
 	return offset, sectors, timestamp
 end
 
+function Region:setRawChunk(index, offset, timestamp, p, size)
+	local _p = self.pointer + offset * 0x1000
+
+	byte.write_uint32_be(_p, size + 1)
+	byte.write_uint8(_p + 4, 2)
+	ffi.copy(_p + 5, p, size)
+
+	local sectors = mc_util.to_sectors(size)
+	write_chunk_info(self.pointer, index, offset, sectors, timestamp)
+end
+
 function Region:getChunk(cx, cz)
 	local index = cx % 32 + cz % 32 * 32
 	local chunk = self.chunks[index]
@@ -128,7 +134,7 @@ function Region:getChunk(cx, cz)
 	chunk = Chunk:new()
 	self.chunks[index] = chunk
 
-	local offset = self:getRawChunk(cx, cz)
+	local offset = self:getRawChunk(index)
 	if offset then
 		chunk:decode(self.pointer + offset * 0x1000)
 	else
