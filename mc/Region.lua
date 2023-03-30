@@ -121,8 +121,9 @@ function Region:setRawChunk(index, offset, timestamp, p, size)
 	byte.write_uint8(_p + 4, 2)
 	ffi.copy(_p + 5, p, size)
 
-	local sectors = mc_util.to_sectors(size)
+	local sectors = mc_util.to_sectors(5 + size)
 	write_chunk_info(self.pointer, index, offset, sectors, timestamp)
+	return sectors
 end
 
 function Region:getChunk(cx, cz)
