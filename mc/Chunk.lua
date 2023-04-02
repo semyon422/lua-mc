@@ -6,6 +6,8 @@ local Section = require("mc.Section")
 
 local Chunk = {}
 
+Chunk.defaultDataVersion = 3337
+
 function Chunk:new()
 	local chunk = setmetatable({}, self)
 	self.__index = self
@@ -24,7 +26,7 @@ function Chunk:init(cx, cz)
 	local chunk_nbt = {{}}
 	self.nbt = chunk_nbt
 
-	nbt.set(chunk_nbt, "DataVersion", 3218, "int")
+	nbt.set(chunk_nbt, "DataVersion", self.defaultDataVersion, "int")
 	nbt.set(chunk_nbt, "Status", "full", "string")
 	nbt.set(chunk_nbt, "xPos", cx, "int")
 	nbt.set(chunk_nbt, "yPos", 0, "int")  -- it doesn't matter
