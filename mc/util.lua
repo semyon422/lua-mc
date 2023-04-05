@@ -4,6 +4,7 @@ local zlib = ffi.load("z")
 ffi.cdef([[
 int uncompress(char *dest, unsigned long *destLen, const char *source, unsigned long sourceLen);
 int compress2(char *dest, unsigned long *destLen, const char *source, unsigned long sourceLen, int level);
+unsigned long compressBound(unsigned long sourceLen);
 ]])
 
 local mc_util = {}
@@ -76,6 +77,10 @@ function mc_util.compress(p, size)
 	local out_size = ffi.new("size_t[1]", buf_out_size)
 	assert(zlib.compress2(buf_compress_out, out_size, p, size, -1) == 0)
 	return buf_compress_out, tonumber(out_size[0])
+end
+
+function mc_util.compress_bound(size)
+	return tonumber(zlib.compressBound(size))
 end
 
 function mc_util.to_sectors(size)

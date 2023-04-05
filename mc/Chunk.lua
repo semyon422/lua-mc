@@ -64,6 +64,11 @@ function Chunk:encode(p)
 	return 5 + chunk_nbt_size
 end
 
+function Chunk:encode_bound()
+	local size = nbt.size(self.nbt, "", "compound")
+	return 5 + mc_util.compress_bound(size)
+end
+
 function Chunk:getSection(sy)
 	return self.sections[sy]
 end

@@ -1,6 +1,5 @@
 local byte = require("byte")
 local ffi = require("ffi")
-local nbt = require("mc.nbt")
 local Chunk = require("mc.Chunk")
 local mc_util = require("mc.util")
 
@@ -45,7 +44,7 @@ local function write_chunk_info(p, i, offset, sectors, timestamp)
 end
 
 function Region:write()
-	local length = 0
+	local sectors_out = 0
 	local _timestamp = os.time()
 
 	local chunks_by_index = self.chunks
@@ -54,22 +53,22 @@ function Region:write()
 	for i = 0, 1023 do
 		local chunk = chunks_by_index[i]
 		if chunk then
-			local size = nbt.size(chunk.nbt, "", "compound")
-			length = length + mc_util.to_sectors(size) * 0x1000
+			local size = chunk:encode_bound()
+			sectors_out = sectors_out + mc_util.to_sectors(size)
 		else
 			local offset, sectors, timestamp = self:getRawChunk(i)
 			if offset then
-				length = length + sectors * 0x1000
+				sectors_out = sectors_out + sectors
 				raw_chunks[i] = {offset, sectors, timestamp}
 			end
 		end
 	end
 
-	if length == 0 then
+	if sectors_out == 0 then
 		return
 	end
 
-	local p = ffi.new("uint8_t[?]", length + 0x2000)
+	local p = ffi.new("uint8_t[?]", (sectors_out + 2) * 0x1000)
 	local _p = self.pointer
 
 	local sector_offset = 2
@@ -89,7 +88,7 @@ function Region:write()
 
 	local path = mc_util.get_region_path(self.path, self.x, self.z)
 	local file = assert(io.open(path, "wb"))
-	file:write(ffi.string(p, length + 0x2000))
+	file:write(ffi.string(p, (sector_offset + 2) * 0x1000))
 	file:close()
 
 	return true
