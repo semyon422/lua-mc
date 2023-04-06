@@ -489,6 +489,8 @@ local function next_compound(compound, name)
 end
 
 function nbt.iter(compound)
+	local t = type(compound)
+	assert(t == "table", ("bad argument #1 to 'nbt.iter' (table expected, got %s)"):format(t))
 	return next_compound, compound, nil
 end
 
