@@ -50,8 +50,8 @@ local function create_biomes(section_nbt, biomes)
 
 	local data = {0LL, 0LL}
 
-	local palette = {tag_id = "compound",
-		nbt.set({{}}, "Name", "minecraft:plains", "string")
+	local palette = {tag_id = "string",
+		"minecraft:plains"
 	}
 
 	nbt.set(biomes, "data", data, "long_array")
