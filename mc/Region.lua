@@ -71,7 +71,7 @@ function Region:write()
 	local p = ffi.new("uint8_t[?]", (sectors_out + 2) * 0x1000)
 	local _p = self.pointer
 
-	local sector_offset = 0
+	local sector_offset = 2
 	for i = 0, 1023 do
 		if chunks_by_index[i] then
 			local size = chunks_by_index[i]:encode(p + sector_offset * 0x1000)
@@ -88,7 +88,7 @@ function Region:write()
 
 	local path = mc_util.get_region_path(self.path, self.x, self.z)
 	local file = assert(io.open(path, "wb"))
-	file:write(ffi.string(p, (sector_offset + 2) * 0x1000))
+	file:write(ffi.string(p, sector_offset * 0x1000))
 	file:close()
 
 	return true
