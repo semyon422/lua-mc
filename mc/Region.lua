@@ -71,7 +71,7 @@ function Region:write()
 	local p = ffi.new("uint8_t[?]", (sectors_out + 2) * 0x1000)
 	local _p = self.pointer
 
-	local sector_offset = 2
+	local sector_offset = 0
 	for i = 0, 1023 do
 		if chunks_by_index[i] then
 			local size = chunks_by_index[i]:encode(p + sector_offset * 0x1000)
