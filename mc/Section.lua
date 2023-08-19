@@ -78,6 +78,7 @@ local function set_data_index(data, bits, index, palette_index)
 	v = bit.rol(v, bits_offset)
 	data[v_index] = v
 end
+Section.set_data_index = set_data_index
 
 local function get_data_index(data, bits, index)
 	if not data or bits == 0 then
@@ -95,6 +96,7 @@ local function get_data_index(data, bits, index)
 
 	return tonumber(i)
 end
+Section.get_data_index = get_data_index
 
 local function rearrange_states(root, states, bits, new_bits)
 	local data = root.data

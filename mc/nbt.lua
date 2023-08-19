@@ -25,8 +25,10 @@ for k, v in pairs(tag_ids) do
 end
 
 local function assert_tag_id(tag_id)
-	assert(type(tag_id) == "string" and tag_ids[tag_id], "unknown tag: " .. tostring(tag_id))
-	return tag_id
+	if type(tag_id) == "string" and tag_ids[tag_id] then
+		return tag_id
+	end
+	error("unknown tag: " .. tostring(tag_id))
 end
 
 -- tag_size[tag_id] returns payload size for lua value
@@ -56,7 +58,7 @@ end
 function tag_size.compound(compound)
 	local length = 0
 	for name, value, tag_id in nbt.iter(compound) do
-		length = length + nbt.size(value, name, tag_id)
+		length = length + nbt.size(tag_id, value, name)
 	end
 	return length + 1
 end
@@ -263,18 +265,18 @@ function pl_dec.long_array(p) return decode_array(p, pl_dec.long) end
 function pl_enc.compound(p, compound)
 	local length = 0
 	for name, value, tag_id in nbt.iter(compound) do
-		local size = nbt.encode(p, value, name, tag_id)
+		local size = nbt.encode(p, tag_id, value, name)
 		length = length + size
 		p = p + size
 	end
-	return length + nbt.encode(p, nil, nil, "end")
+	return length + nbt.encode(p, "end")
 end
 
 function pl_dec.compound(p)
 	local length = 0
 	local compound = {{}}
 	while true do
-		local value, size, name, tag_id = nbt.decode(p)
+		local value, tag_id, name, size = nbt.decode(p)
 		length = length + size
 		p = p + size
 		if not value then
@@ -354,7 +356,7 @@ function snbt.long_array(obj, depth) return snbt_array(obj, depth, "L", "long") 
 function nbt.decode(p)
 	local tag_id = tag_ids[byte.read_uint8(p)]
 	if tag_id == "end" then
-		return nil, 1, nil, tag_id
+		return nil, tag_id, nil, 1
 	end
 	local name_length = byte.read_uint16_be(p + 1)
 	local name = ""
@@ -363,10 +365,10 @@ function nbt.decode(p)
 	end
 	local decode = pl_dec[tag_id]
 	local obj, size = decode(p + 3 + name_length)
-	return obj, 3 + name_length + size, name, tag_id
+	return obj, tag_id, name, 3 + name_length + size
 end
 
-function nbt.encode(p, obj, name, tag_id)
+function nbt.encode(p, tag_id, obj, name)
 	assert_tag_id(tag_id)
 	byte.write_uint8(p, tag_ids[tag_id])
 	if tag_id == "end" then
@@ -382,7 +384,7 @@ function nbt.encode(p, obj, name, tag_id)
 	return 3 + #name + size
 end
 
-function nbt.size(obj, name, tag_id)
+function nbt.size(tag_id, obj, name)
 	assert_tag_id(tag_id)
 	if tag_id == "end" then
 		return 1
@@ -405,6 +407,14 @@ function nbt.bound(p, size)
 		end
 		offset, ps = offset + s, s
 	end
+end
+
+-- append Tag to the end of Compound
+function nbt.append(p, size, tag_id, obj, name)
+	local end_ptr = p + size - 1  -- pointer to the End tag
+	local _size = nbt.encode(end_ptr, tag_id, obj, name)
+	nbt.encode(end_ptr + _size, "end")
+	return _size
 end
 
 function nbt.set(compound, name, value, tag_id)
@@ -484,8 +494,8 @@ function nbt.string(obj, tag_id, depth)
 end
 
 local function next_compound(compound, name)
-	local name, tag_id = next(compound[1], name)
-	return name, compound[name], tag_id
+	local _name, tag_id = next(compound[1], name)
+	return _name, compound[_name], tag_id
 end
 
 function nbt.iter(compound)
@@ -518,20 +528,37 @@ nbt.set(test_tag1, "o", -1LL, "long")
 
 local test_tag2
 do
-	local size = nbt.size(test_tag1, "", "compound")
+	local size = nbt.size("compound", test_tag1)
 	assert(size == 77)
 	local p = ffi.new("uint8_t[?]", size)
-	assert(nbt.encode(p, test_tag1, "", "compound") == 77)
+	assert(nbt.encode(p, "compound", test_tag1) == 77)
 	test_tag2 = nbt.decode(p)
 	assert(nbt.bound(p, size + 1) == size)
 	assert(nbt.bound(p, size) == size)
 	assert(not nbt.bound(p, size - 1))
 end
 
+do
+	local comp_a = {{}}
+	nbt.set(comp_a, "a", "1", "string")
+	local size = nbt.size("compound", comp_a)
+	local p = ffi.new("uint8_t[?]", size * 2)
+	nbt.encode(p, "compound", comp_a)
+
+	local comp_b = nbt.decode(p)
+	assert(nbt.equal(comp_a, comp_b))
+
+	nbt.append(p, size, "string", "2", "b")
+	comp_a = nbt.decode(p)
+
+	nbt.set(comp_b, "b", "2", "string")
+	assert(nbt.equal(comp_a, comp_b))
+end
+
 assert(nbt.equal(test_tag0, test_tag1))
 assert(nbt.equal(test_tag1, test_tag2))
 assert(not nbt.equal({{{}}}, {{{}}}))
-assert(nbt.size(test_tag2, "", "compound") == 77)
+assert(nbt.size("compound", test_tag2) == 77)
 assert(nbt.string(test_tag2) == [[{
   j: [B;
     1b,

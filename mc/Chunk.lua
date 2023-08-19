@@ -40,7 +40,7 @@ function Chunk:decode(p)
 	assert(compression_type == 2)
 
 	local chunk_nbt_ptr, chunk_nbt_size = mc_util.uncompress(p + 5, length - 1)
-	local chunk_nbt, size, name, tag_id = nbt.decode(chunk_nbt_ptr)
+	local chunk_nbt = nbt.decode(chunk_nbt_ptr)
 	self.nbt = chunk_nbt
 
 	local sections = {}
@@ -54,7 +54,7 @@ function Chunk:decode(p)
 end
 
 function Chunk:encode(p)
-	local size = nbt.encode(p, self.nbt, "", "compound")
+	local size = nbt.encode(p, "compound", self.nbt)
 	local chunk_nbt_ptr, chunk_nbt_size = mc_util.compress(p, size)
 
 	byte.write_uint32_be(p, chunk_nbt_size + 1)
@@ -65,7 +65,7 @@ function Chunk:encode(p)
 end
 
 function Chunk:encode_bound()
-	local size = nbt.size(self.nbt, "", "compound")
+	local size = nbt.size("compound", self.nbt)
 	return 5 + mc_util.compress_bound(size)
 end
 
@@ -124,6 +124,12 @@ function Chunk:setBiome(x, y, z, biome)
 		self:setSection(section)
 	end
 	return section:setBiome(x, y, z, biome)
+end
+
+function Chunk:getHeight(x, z, bits, name)
+	local index = z % 16 * 16 + x % 16
+	-- return Section.get_data_index(self.nbt.Heightmaps[name], bits, index)
+	return Section.get_data_index(self.nbt.Heightmaps[name], bits, index) + self.nbt.yPos * 16 - 2
 end
 
 return Chunk

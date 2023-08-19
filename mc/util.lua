@@ -36,10 +36,15 @@ function mc_util.get_region_path(path, rx, rz)
 end
 
 local default_color = {1, 1, 1, 1}
+local green = {0.6, 0.8, 0.4, 1}
 function mc_util.get_block_color(name)
 	local _name = name:match("^minecraft:(.+)$")
 	if not _name then
 		return default_color
+	end
+
+	if name == "minecraft:grass_block" then
+		return green
 	end
 
 	local path = "block/" .. _name .. ".png"
@@ -60,22 +65,39 @@ function mc_util.get_block_color(name)
 	return color
 end
 
-local buf_out_size = 2 ^ 20
+local buf_out_size = 2 ^ 24
 local buf_uncompress_out = ffi.new("uint8_t[?]", buf_out_size)
 local buf_compress_out = ffi.new("uint8_t[?]", buf_out_size)
 
 mc_util.chunk_buffer_size = buf_out_size
 mc_util.chunk_buffer = ffi.new("uint8_t[?]", buf_out_size)
 
+local zlib_errors = {
+	Z_BUF_ERROR = -5,
+	Z_MEM_ERROR = -4,
+	Z_DATA_ERROR = -3,
+}
+for k, v in pairs(zlib_errors) do
+	zlib_errors[v] = k
+end
+
+local zlib_error_messages = {
+	Z_BUF_ERROR = "The buffer dest was not large enough to hold the uncompressed data.",
+	Z_MEM_ERROR = "Insufficient memory.",
+	Z_DATA_ERROR = "The compressed data (referenced by source) was corrupted.",
+}
+
 function mc_util.uncompress(p, size)
 	local out_size = ffi.new("size_t[1]", buf_out_size)
-	assert(zlib.uncompress(buf_uncompress_out, out_size, p, size) == 0)
+	local err = zlib.uncompress(buf_uncompress_out, out_size, p, size)
+	assert(err == 0, zlib_error_messages[zlib_errors[err]] or "Unknown error")
 	return buf_uncompress_out, tonumber(out_size[0])
 end
 
 function mc_util.compress(p, size)
 	local out_size = ffi.new("size_t[1]", buf_out_size)
-	assert(zlib.compress2(buf_compress_out, out_size, p, size, -1) == 0)
+	local err = zlib.compress2(buf_compress_out, out_size, p, size, -1)
+	assert(err == 0, zlib_error_messages[zlib_errors[err]] or "Unknown error")
 	return buf_compress_out, tonumber(out_size[0])
 end
 
