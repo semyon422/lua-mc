@@ -6,7 +6,7 @@ local Section = require("mc.Section")
 
 local Chunk = {}
 
-Chunk.defaultDataVersion = 3337
+Chunk.defaultDataVersion = 3578  -- 1.20.2
 
 function Chunk:new()
 	local chunk = setmetatable({}, self)
