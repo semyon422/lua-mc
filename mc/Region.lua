@@ -125,6 +125,16 @@ function Region:setRawChunk(index, offset, timestamp, p, size)
 	return sectors
 end
 
+function Region:copyChunk(index, offset_dst, region_src)
+	local offset_src, sectors, timestamp = region_src:getRawChunk(index)
+	local _p = self.pointer + offset_dst * 0x1000
+
+	ffi.copy(_p, region_src.pointer + offset_src * 0x1000, sectors * 0x1000)
+	write_chunk_info(self.pointer, index, offset_dst, sectors, timestamp)
+
+	return sectors
+end
+
 function Region:getChunk(cx, cz)
 	local index = cx % 32 + cz % 32 * 32
 	local chunk = self.chunks[index]
