@@ -321,6 +321,9 @@ function snbt.compound(obj, depth)
 	for i, name in ipairs(sorted_keys) do
 		local value, tag_id = nbt.get(obj, name)
 		local comma = i ~= #sorted_keys and "," or ""
+		if not name:match("^[%w_]+$") then
+			name = ("%q"):format(name)
+		end
 		table.insert(buffer, name .. ": " .. nbt.string(value, tag_id, depth + 1) .. comma)
 	end
 	return snbt_end("}", depth, buffer)
@@ -604,7 +607,7 @@ function nbt.parse(s)
 		end
 		table.insert(out, s:sub(i, a - 1))
 		table.insert(strings, s:sub(a, b))
-		table.insert(out, ("<%s>"):format(#strings))
+		table.insert(out, ("___%s___"):format(#strings))
 		i = b + 1
 	end
 	table.insert(out, s:sub(i, #s))
@@ -621,9 +624,12 @@ function nbt.parse(s)
 	str_out = str_out:gsub(";", ",")
 
 	-- reformat numbers and set types
-	str_out = str_out:gsub("(%w+)=(%-?%d+%.?%d*)([dbslfiDBSLFI]?)", function(k, v, t)
+	str_out = str_out:gsub("([%w_]+)=(%-?%d+%.?%d*)([dbslfiDBSLFI]?)", function(k, v, t)
 		if t == "" then
 			t = v:find("%.") and "d" or "i"
+		end
+		if k:match("^___%d+___$") then
+			return ('%s=%s,["__" .. %s .. "_type"]="%s"'):format(k, v, k, t)
 		end
 		return ('%s=%s,__%s_type="%s"'):format(k, v, k, t)
 	end)
@@ -635,8 +641,12 @@ function nbt.parse(s)
 	end)
 
 	-- return strings back
-	str_out = str_out:gsub("<(%d)>", function(n)
-		return strings[tonumber(n)]
+	str_out = str_out:gsub("___(%d)___(=?)", function(n, eq)
+		local key = strings[tonumber(n)]
+		if eq == "=" then
+			return ("[%s]="):format(key)
+		end
+		return key
 	end)
 
 	local get_v = assert(load("return " .. str_out))
@@ -775,6 +785,10 @@ assert(nbt.string(nbt.parse("[]")) == "[]")
 assert(nbt.string(nbt.parse("[1]")) == "[1]")
 assert(nbt.string(nbt.parse("[1.5]")) == "[1.5]")
 assert(nbt.string(nbt.parse("[2]")) == "[2]")
+assert(nbt.string(nbt.parse('{qwe: "asd"}')) == '{qwe: "asd"}')
+assert(nbt.string(nbt.parse('{"qwe": "asd"}')) == '{qwe: "asd"}')
+assert(nbt.string(nbt.parse('{"qwe:qwe": "asd"}')) == '{"qwe:qwe": "asd"}')
+assert(nbt.string(nbt.parse('{"qwe:qwe": 1l}')) == '{"qwe:qwe": 1l}')
 snbt.indent, snbt.new_line = indent, new_line
 
 return nbt
