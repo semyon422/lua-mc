@@ -8,5 +8,4 @@ Lua libarires for Minecraft
 
 ## NBT library
 
-- nbt <-> lua
-- lua -> snbt
+- nbt ⇋ lua ⇋ snbt

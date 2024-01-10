@@ -292,7 +292,7 @@ end
 
 local snbt = {}
 
-snbt.indent = "  "
+snbt.indent = "\t"
 snbt.new_line = "\n"
 
 local function snbt_end(bracket, depth, buffer)
@@ -308,7 +308,7 @@ function snbt.short(v) return tonumber(v) .. "s" end
 function snbt.int(v) return tonumber(v) end
 function snbt.long(v) return tostring(v):match("^(.-)[^0-9]*$") .. "l" end
 function snbt.float(v) return tonumber(v) .. "f" end
-function snbt.double(v) return tonumber(v) .. "d" end
+function snbt.double(v) return tonumber(v) end
 function snbt.string(v) return ("%q"):format(v) end
 
 function snbt.compound(obj, depth)
@@ -504,34 +504,240 @@ function nbt.iter(compound)
 	return next_compound, compound, nil
 end
 
+---@param s string
+---@param i number
+local function find_string(s, i)
+	local _, pos, c = s:find([[^.-(['"])]], i)
+	if not pos then
+		return
+	end
+	local j = pos + 1
+	while j <= #s do
+		local _c = s:sub(j, j)
+		if _c == c then
+			return pos, j
+		elseif _c == "\\" then
+			j = j + 1
+		end
+		j = j + 1
+	end
+end
+
+local stypes = {
+	b = "byte",
+	s = "short",
+	i = "int",
+	l = "long",
+	f = "float",
+	d = "double",
+}
+
+local function decode_prenbt(obj)
+	if obj.__compound then
+		obj.__compound = nil
+		local types = {}
+		for k, v in pairs(obj) do
+			local _k = k:match("^__(.+)_type$")
+			if _k then
+				types[_k] = stypes[v:lower()]
+				obj[k] = nil
+			end
+		end
+		for k, v in pairs(obj) do
+			if type(v) == "string" then
+				types[k] = "string"
+			elseif type(v) == "table" then
+				if v.__array then
+					types[k] = stypes[v.__array:lower()] .. "_array"
+					v.__array = nil
+					v.__type = nil
+				elseif v.__list then
+					types[k] = "list"
+					decode_prenbt(v)
+				elseif v.__compound then
+					types[k] = "compound"
+					decode_prenbt(v)
+				end
+			end
+		end
+		obj[1] = types
+	elseif obj.__list then
+		obj.tag_id = stypes[obj.__type]
+		obj.__list = nil
+		obj.__type = nil
+		local _obj = obj[1]
+		if type(_obj) == "table" then
+			if _obj.__array then
+				obj.tag_id = stypes[_obj.__array:lower()] .. "_array"
+				for _, v in ipairs(obj) do
+					v.__array = nil
+					v.__type = nil
+				end
+			elseif _obj.__list then
+				obj.tag_id = "list"
+				for _, v in ipairs(obj) do
+					decode_prenbt(v)
+				end
+			elseif _obj.__compound then
+				obj.tag_id = "compound"
+				for _, v in ipairs(obj) do
+					decode_prenbt(v)
+				end
+			end
+		end
+		if not obj.tag_id then
+			obj.tag_id = "byte"  -- default type for empty list
+		end
+	end
+end
+
+function nbt.parse(s)
+	local out = {}
+	local strings = {}
+
+	-- remove strings for a while
+	local i = 1
+	while i <= #s do
+		local a, b = find_string(s, i)
+		if not a then
+			break
+		end
+		table.insert(out, s:sub(i, a - 1))
+		table.insert(strings, s:sub(a, b))
+		table.insert(out, ("<%s>"):format(#strings))
+		i = b + 1
+	end
+	table.insert(out, s:sub(i, #s))
+
+	local str_out = table.concat(out)
+	str_out = str_out:gsub("%s+", "")  -- remove spaces
+	str_out = str_out:gsub(":", "=")
+
+	str_out = str_out:gsub("%{", "{__compound=true,")  -- mark compounds
+	str_out = str_out:gsub("%[([DBSLFI])", "{__array='%1'")  -- mark arrays
+	str_out = str_out:gsub("%[", "{__list=true,")  -- mark lists
+
+	str_out = str_out:gsub("%]", "}")
+	str_out = str_out:gsub(";", ",")
+
+	-- reformat numbers and set types
+	str_out = str_out:gsub("(%w+)=(%-?%d+%.?%d*)([dbslfiDBSLFI]?)", function(k, v, t)
+		if t == "" then
+			t = v:find("%.") and "d" or "i"
+		end
+		return ('%s=%s,__%s_type="%s"'):format(k, v, k, t)
+	end)
+	str_out = str_out:gsub(",(%-?%d+%.?%d*)([dbslfiDBSLFI]?)", function(v, t)
+		if t == "" then
+			t = v:find("%.") and "d" or "i"
+		end
+		return (',%s,__type="%s"'):format(v, t)
+	end)
+
+	-- return strings back
+	str_out = str_out:gsub("<(%d)>", function(n)
+		return strings[tonumber(n)]
+	end)
+
+	local get_v = assert(load("return " .. str_out))
+	local v = get_v()
+
+	decode_prenbt(v)
+
+	return v
+end
+
 --------------------------------------------------------------------------------
 -- tests
 --------------------------------------------------------------------------------
 
 local test_tag0 = {
-	{k = "byte", l = "list", j = "byte_array", m = "compound", n = "string", o = "long"},
+	{
+		a = "double",
+		b = "float",
+		c = "int",
+		f = "list",
+		j = "byte_array",
+		k = "byte",
+		l = "list",
+		m = "compound",
+		n = "string",
+		o = "long",
+		p = "list",
+		q = "list",
+	},
+	a = 1.5,
+	b = 2.5,
+	c = 3,
+	f = {tag_id = "long", 1, 2},
+	j = {1, 2, 3},
 	k = -128,
 	l = {tag_id = "compound", {{}}, {{}}},
-	j = {1, 2, 3},
 	m = {{k = "list"}, k = {tag_id = "byte_array", {}, {}}},
 	n = "qwerty",
 	o = -1LL,
+	p = {tag_id = "double", 1.5, 2.5},
+	q = {tag_id = "int", 3, 4},
 }
 
 local test_tag1 = {{}}
+nbt.set(test_tag1, "a", 1.5, "double")
+nbt.set(test_tag1, "b", 2.5, "float")
+nbt.set(test_tag1, "c", 3, "int")
+nbt.set(test_tag1, "f", {tag_id = "long", 1, 2}, "list")
+nbt.set(test_tag1, "j", {1, 2, 3}, "byte_array")
 nbt.set(test_tag1, "k", -128, "byte")
 nbt.set(test_tag1, "l", {tag_id = "compound", {{}}, {{}}}, "list")
-nbt.set(test_tag1, "j", {1, 2, 3}, "byte_array")
 nbt.set(test_tag1, "m", nbt.set({{}}, "k", {tag_id = "byte_array", {}, {}}, "list"), "compound")
 nbt.set(test_tag1, "n", "qwerty", "string")
 nbt.set(test_tag1, "o", -1LL, "long")
+nbt.set(test_tag1, "p", {tag_id = "double", 1.5, 2.5}, "list")
+nbt.set(test_tag1, "q", {tag_id = "int", 3, 4}, "list")
+
+local test_tag_str = [[{
+	a: 1.5,
+	b: 2.5f,
+	c: 3,
+	f: [
+		1l,
+		2l
+	],
+	j: [B;
+		1b,
+		2b,
+		3b
+	],
+	k: -128b,
+	l: [
+		{},
+		{}
+	],
+	m: {
+		k: [
+			[B],
+			[B]
+		]
+	},
+	n: "qwerty",
+	o: -1l,
+	p: [
+		1.5,
+		2.5
+	],
+	q: [
+		3,
+		4
+	]
+}]]
+
+local test_tag_size = 172
 
 local test_tag2
 do
 	local size = nbt.size("compound", test_tag1)
-	assert(size == 77)
+	assert(size == test_tag_size, size)
 	local p = ffi.new("uint8_t[?]", size)
-	assert(nbt.encode(p, "compound", test_tag1) == 77)
+	assert(nbt.encode(p, "compound", test_tag1) == test_tag_size)
 	test_tag2 = nbt.decode(p)
 	assert(nbt.bound(p, size + 1) == size)
 	assert(nbt.bound(p, size) == size)
@@ -558,26 +764,17 @@ end
 assert(nbt.equal(test_tag0, test_tag1))
 assert(nbt.equal(test_tag1, test_tag2))
 assert(not nbt.equal({{{}}}, {{{}}}))
-assert(nbt.size("compound", test_tag2) == 77)
-assert(nbt.string(test_tag2) == [[{
-  j: [B;
-    1b,
-    2b,
-    3b
-  ],
-  k: -128b,
-  l: [
-    {},
-    {}
-  ],
-  m: {
-    k: [
-      [B],
-      [B]
-    ]
-  },
-  n: "qwerty",
-  o: -1l
-}]])
+assert(nbt.size("compound", test_tag2) == test_tag_size)
+assert(nbt.string(test_tag2) == test_tag_str, nbt.string(test_tag2))
+
+assert(nbt.string(nbt.parse(test_tag_str)) == test_tag_str)
+
+local indent, new_line = snbt.indent, snbt.new_line
+snbt.indent, snbt.new_line = "", ""
+assert(nbt.string(nbt.parse("[]")) == "[]")
+assert(nbt.string(nbt.parse("[1]")) == "[1]")
+assert(nbt.string(nbt.parse("[1.5]")) == "[1.5]")
+assert(nbt.string(nbt.parse("[2]")) == "[2]")
+snbt.indent, snbt.new_line = indent, new_line
 
 return nbt
