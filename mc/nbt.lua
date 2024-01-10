@@ -587,6 +587,8 @@ local function decode_prenbt(obj)
 					decode_prenbt(v)
 				end
 			end
+		elseif type(_obj) == "string" then
+			obj.tag_id = "string"
 		end
 		if not obj.tag_id then
 			obj.tag_id = "byte"  -- default type for empty list
@@ -641,7 +643,7 @@ function nbt.parse(s)
 	end)
 
 	-- return strings back
-	str_out = str_out:gsub("___(%d)___(=?)", function(n, eq)
+	str_out = str_out:gsub("___(%d+)___(=?)", function(n, eq)
 		local key = strings[tonumber(n)]
 		if eq == "=" then
 			return ("[%s]="):format(key)
@@ -785,6 +787,7 @@ assert(nbt.string(nbt.parse("[]")) == "[]")
 assert(nbt.string(nbt.parse("[1]")) == "[1]")
 assert(nbt.string(nbt.parse("[1.5]")) == "[1.5]")
 assert(nbt.string(nbt.parse("[2]")) == "[2]")
+assert(nbt.string(nbt.parse('["a","b","c"]')) == '["a","b","c"]')
 assert(nbt.string(nbt.parse('{qwe: "asd"}')) == '{qwe: "asd"}')
 assert(nbt.string(nbt.parse('{"qwe": "asd"}')) == '{qwe: "asd"}')
 assert(nbt.string(nbt.parse('{"qwe:qwe": "asd"}')) == '{"qwe:qwe": "asd"}')
