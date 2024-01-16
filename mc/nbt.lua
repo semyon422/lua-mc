@@ -356,6 +356,12 @@ function snbt.long_array(obj, depth) return snbt_array(obj, depth, "L", "long") 
 
 -- public nbt interface
 
+---decode binary NBT data into Lua value
+---@param p ffi.cdata*
+---@return any
+---@return string
+---@return string?
+---@return integer size total read size
 function nbt.decode(p)
 	local tag_id = tag_ids[byte.read_uint8(p)]
 	if tag_id == "end" then
@@ -371,6 +377,12 @@ function nbt.decode(p)
 	return obj, tag_id, name, 3 + name_length + size
 end
 
+---encode Lua value into binary NBT data
+---@param p ffi.cdata*
+---@param tag_id string
+---@param obj any
+---@param name string?
+---@return integer size total write size
 function nbt.encode(p, tag_id, obj, name)
 	assert_tag_id(tag_id)
 	byte.write_uint8(p, tag_ids[tag_id])
@@ -387,6 +399,11 @@ function nbt.encode(p, tag_id, obj, name)
 	return 3 + #name + size
 end
 
+---compute size of binary NBT data for a given tag
+---@param tag_id string
+---@param obj any
+---@param name string?
+---@return integer size total size
 function nbt.size(tag_id, obj, name)
 	assert_tag_id(tag_id)
 	if tag_id == "end" then
@@ -397,6 +414,12 @@ function nbt.size(tag_id, obj, name)
 	return 3 + #(name or "") + size
 end
 
+---securely read `size` bytes of data from `p`
+---return offset of end of data if found
+---return nothing if data is larger than `size`
+---@param p any
+---@param size any
+---@return integer?
 function nbt.bound(p, size)
 	local offset, ps = 0, 0
 	local bound = coroutine.wrap(tag_bound.bound)
@@ -412,7 +435,13 @@ function nbt.bound(p, size)
 	end
 end
 
--- append Tag to the end of Compound
+---append tag to the end of compound
+---@param p ffi.cdata*
+---@param size integer
+---@param tag_id string
+---@param obj any
+---@param name string
+---@return integer
 function nbt.append(p, size, tag_id, obj, name)
 	local end_ptr = p + size - 1  -- pointer to the End tag
 	local _size = nbt.encode(end_ptr, tag_id, obj, name)
@@ -420,6 +449,12 @@ function nbt.append(p, size, tag_id, obj, name)
 	return _size
 end
 
+---add `value` of type `tag_id` at key `name` to `compound`
+---@param compound table
+---@param name string
+---@param value any
+---@param tag_id string
+---@return any
 function nbt.set(compound, name, value, tag_id)
 	assert_tag_id(tag_id)
 	compound[1][name] = tag_id
@@ -427,6 +462,11 @@ function nbt.set(compound, name, value, tag_id)
 	return compound
 end
 
+---get `value` and its `tag_id` at key `name` of `compound`
+---@param compound table
+---@param name string
+---@return any
+---@return any
 function nbt.get(compound, name)
 	return compound[name], compound[1][name]
 end
@@ -453,6 +493,10 @@ end
 		{{{}}}
 		{tag_id = "", {tag_id = "", {}}}
 ]]
+
+---detect `tag_id` (partially for array) of given table
+---@param obj table
+---@return string?
 function nbt.type(obj)
 	if type(obj) ~= "table" then
 		return
@@ -469,6 +513,10 @@ function nbt.type(obj)
 	end
 end
 
+---check if two tables are equal
+---@param a table
+---@param b table
+---@return boolean
 function nbt.equal(a, b)
 	if type(a) ~= "table" or type(b) ~= "table" then
 		return a == b
@@ -484,6 +532,11 @@ function nbt.equal(a, b)
 	return eq and eq(a, b)
 end
 
+---get string NBT representation of given value
+---@param obj any
+---@param tag_id any
+---@param depth any
+---@return string
 function nbt.string(obj, tag_id, depth)
 	if not tag_id then
 		tag_id = nbt.type(obj)
@@ -501,12 +554,21 @@ local function next_compound(compound, name)
 	return _name, compound[_name], tag_id
 end
 
+---get key,value,tag_id iterator for compound
+---@param compound table
+---@return function
+---@return table
+---@return nil
 function nbt.iter(compound)
 	local t = type(compound)
 	assert(t == "table", ("bad argument #1 to 'nbt.iter' (table expected, got %s)"):format(t))
 	return next_compound, compound, nil
 end
 
+---get a copy of value without any NBT data
+---@param obj any
+---@param tag_id string?
+---@return any
 function nbt.clean(obj, tag_id)
 	if not tag_id then
 		tag_id = nbt.type(obj)
@@ -618,6 +680,9 @@ local function decode_prenbt(obj)
 	end
 end
 
+---decode SNBT data
+---@param s string
+---@return any
 function nbt.parse(s)
 	local out = {}
 	local strings = {}
