@@ -507,6 +507,28 @@ function nbt.iter(compound)
 	return next_compound, compound, nil
 end
 
+function nbt.clean(obj, tag_id)
+	if not tag_id then
+		tag_id = nbt.type(obj)
+	end
+	if not tag_id then
+		return obj
+	end
+	local new_obj = {}
+	if tag_id == "compound" then
+		for k, v in pairs(obj) do
+			if k ~= 1 then
+				new_obj[k] = nbt.clean(v)
+			end
+		end
+	elseif tag_id == "list" or tag_id == "array" then
+		for i, v in ipairs(obj) do
+			new_obj[i] = nbt.clean(v)
+		end
+	end
+	return new_obj
+end
+
 ---@param s string
 ---@param i number
 local function find_string(s, i)
