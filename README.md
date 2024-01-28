@@ -8,4 +8,7 @@ Lua libarires for Minecraft
 
 ## NBT library
 
-- nbt ⇋ lua ⇋ snbt
+- binary tag ⇋ lua tag ⇋ string tag
+- lua tag ⇋ lua value
+
+[byte.lua](https://github.com/semyon422/aqua/blob/master/byte_new.lua) is required.
