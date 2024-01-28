@@ -294,6 +294,7 @@ local snbt = {}
 
 snbt.indent = "\t"
 snbt.new_line = "\n"
+snbt.colon_space = " "
 
 local function snbt_end(bracket, depth, buffer)
 	if #buffer == 1 then
@@ -324,7 +325,7 @@ function snbt.compound(obj, depth)
 		if not name:match("^[%w_]+$") then
 			name = ("%q"):format(name)
 		end
-		table.insert(buffer, name .. ": " .. nbt.string(value, tag_id, depth + 1) .. comma)
+		table.insert(buffer, name .. ":" .. snbt.colon_space .. nbt.string(value, tag_id, depth + 1) .. comma)
 	end
 	return snbt_end("}", depth, buffer)
 end
@@ -569,7 +570,7 @@ end
 ---@param obj any
 ---@param tag_id string?
 ---@return any
-function nbt.clean(obj, tag_id)
+function nbt.untagify(obj, tag_id)
 	if not tag_id then
 		tag_id = nbt.type(obj)
 	end
@@ -580,15 +581,52 @@ function nbt.clean(obj, tag_id)
 	if tag_id == "compound" then
 		for k, v in pairs(obj) do
 			if k ~= 1 then
-				new_obj[k] = nbt.clean(v)
+				new_obj[k] = nbt.untagify(v)
 			end
 		end
 	elseif tag_id == "list" or tag_id == "array" then
 		for i, v in ipairs(obj) do
-			new_obj[i] = nbt.clean(v)
+			new_obj[i] = nbt.untagify(v)
 		end
 	end
 	return new_obj
+end
+
+local tagify = {}
+
+function tagify.string(v) return v, "string" end
+function tagify.number(v) return v, "double" end
+function tagify.cdata(v) return v, "long" end
+function tagify.boolean(v) return v and 1 or 0, "byte" end
+function tagify.table(v) return nbt.tagify(v) end
+
+---get a copy of value with added NBT data
+---@param obj any
+---@return any
+---@return string
+function nbt.tagify(obj)
+	local _type = type(obj)
+	if _type ~= "table" then
+		return tagify[_type](obj)
+	end
+	local new_obj = {}
+	local tag_id
+	if not obj[1] then
+		new_obj[1] = {}
+		tag_id = "compound"
+		for k, v in pairs(obj) do
+			local _v, _tag_id = nbt.tagify(v)
+			nbt.set(new_obj, k, _v, _tag_id)
+		end
+	else
+		tag_id = "list"
+		for i, v in ipairs(obj) do
+			local _v, _tag_id = nbt.tagify(v)
+			new_obj.tag_id = _tag_id
+			new_obj[i] = _v
+		end
+	end
+	return new_obj, tag_id
 end
 
 ---@param s string
@@ -716,6 +754,9 @@ function nbt.parse(s)
 	str_out = str_out:gsub("([%w_]+)=(%-?%d+%.?%d*)([dbslfiDBSLFI]?)", function(k, v, t)
 		if t == "" then
 			t = v:find("%.") and "d" or "i"
+		end
+		if t:lower() == "l" then
+			v = v .. "ll"
 		end
 		if k:match("^___%d+___$") then
 			return ('%s=%s,["__" .. %s .. "_type"]="%s"'):format(k, v, k, t)
@@ -868,17 +909,22 @@ assert(nbt.string(test_tag2) == test_tag_str, nbt.string(test_tag2))
 
 assert(nbt.string(nbt.parse(test_tag_str)) == test_tag_str)
 
-local indent, new_line = snbt.indent, snbt.new_line
-snbt.indent, snbt.new_line = "", ""
-assert(nbt.string(nbt.parse("[]")) == "[]")
-assert(nbt.string(nbt.parse("[1]")) == "[1]")
-assert(nbt.string(nbt.parse("[1.5]")) == "[1.5]")
-assert(nbt.string(nbt.parse("[2]")) == "[2]")
-assert(nbt.string(nbt.parse('["a","b","c"]')) == '["a","b","c"]')
-assert(nbt.string(nbt.parse('{qwe: "asd"}')) == '{qwe: "asd"}')
-assert(nbt.string(nbt.parse('{"qwe": "asd"}')) == '{qwe: "asd"}')
-assert(nbt.string(nbt.parse('{"qwe:qwe": "asd"}')) == '{"qwe:qwe": "asd"}')
-assert(nbt.string(nbt.parse('{"qwe:qwe": 1l}')) == '{"qwe:qwe": 1l}')
-snbt.indent, snbt.new_line = indent, new_line
+local indent, new_line, colon_space = snbt.indent, snbt.new_line, snbt.colon_space
+snbt.indent, snbt.new_line, snbt.colon_space = "", "", ""
+local function _sp(...) return nbt.string(nbt.parse(...))  end
+assert(_sp("[]") == "[]")
+assert(_sp("[1]") == "[1]")
+assert(_sp("[1.5]") == "[1.5]")
+assert(_sp("[2]") == "[2]")
+assert(_sp('["a","b","c"]') == '["a","b","c"]')
+assert(_sp('{qwe:"asd"}') == '{qwe:"asd"}')
+assert(_sp('{"qwe":"asd"}') == '{qwe:"asd"}')
+assert(_sp('{"qwe:qwe":"asd"}') == '{"qwe:qwe":"asd"}')
+assert(_sp('{"qwe:qwe":1l}') == '{"qwe:qwe":1l}')
+local function _stup(...) return nbt.string(nbt.tagify(nbt.untagify(nbt.parse(...))))  end
+local function _st(...) return nbt.string(nbt.tagify(...))  end
+assert(_stup('{a:1l,b:"str",c:[{},{}],d:{a:1.5,b:1}}') == '{a:1l,b:"str",c:[{},{}],d:{a:1.5,b:1}}')
+assert(_st({a=1ll,b="str",c={{},{}},d={a=1.5,b=1}}) == '{a:1l,b:"str",c:[{},{}],d:{a:1.5,b:1}}')
+snbt.indent, snbt.new_line, snbt.colon_space = indent, new_line, colon_space
 
 return nbt
