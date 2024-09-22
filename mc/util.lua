@@ -16,6 +16,10 @@ function mc_util.get_region_pos_c(cx, cz)
 	return math.floor(cx / 32), math.floor(cz / 32)
 end
 
+function mc_util.get_chunk_index(cx, cz)
+	return cx % 32 + cz % 32 * 32
+end
+
 function mc_util.get_chunk_pos(x, z)
 	return math.floor(x / 16), math.floor(z / 16)
 end
@@ -65,7 +69,7 @@ function mc_util.get_block_color(name)
 	return color
 end
 
-local buf_out_size = 2 ^ 24
+local buf_out_size = 100e6
 local buf_uncompress_out = ffi.new("uint8_t[?]", buf_out_size)
 local buf_compress_out = ffi.new("uint8_t[?]", buf_out_size)
 

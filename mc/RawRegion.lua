@@ -13,6 +13,13 @@ local RawRegion = class()
 ---@param rz integer
 function RawRegion:new(path, rx, rz)
 	self.path = path
+	self:setPos(rx, rz)
+	self.sector_offset = 2
+end
+
+---@param rx integer
+---@param rz integer
+function RawRegion:setPos(rx, rz)
 	self.x = rx
 	self.z = rz
 end
@@ -22,6 +29,16 @@ end
 function RawRegion:setPointer(p, size)
 	self.pointer = p
 	self.size = size
+end
+
+---@param size integer
+function RawRegion:allocate(size)
+	self:setPointer(ffi.new("uint8_t[?]", size), size)
+end
+
+function RawRegion:reset()
+	ffi.fill(self.pointer, self.size, 0)
+	self.sector_offset = 2
 end
 
 ---@return true?
@@ -96,6 +113,18 @@ end
 function RawRegion:setRawChunk(chunk_info, raw_chunk)
 	chunk_info:write(self.pointer)
 	raw_chunk:write(chunk_info:getChunkPtr(self.pointer))
+end
+
+---@param raw_chunk mc.RawChunk
+function RawRegion:addRawChunk(index, raw_chunk)
+	local chunk_info = ChunkInfo(index)
+	chunk_info.sector_offset = self.sector_offset
+	chunk_info.sectors = raw_chunk:getSectors()
+	chunk_info.timestamp = os.time()
+
+	self.sector_offset = self.sector_offset + chunk_info.sectors
+
+	self:setRawChunk(chunk_info, raw_chunk)
 end
 
 return RawRegion

@@ -43,6 +43,7 @@ function RawChunk:compressRaw(p, size)
 	local _p, _size = mc_util.compress(p, size)
 	self.compressed_data_ptr = _p
 	self.length = _size + 1
+	self.compression_type = 2
 end
 
 return RawChunk

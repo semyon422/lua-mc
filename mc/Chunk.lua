@@ -1,30 +1,40 @@
-local byte = require("byte")
+local class = require("class")
 local nbt = require("mc.nbt")
-local ffi = require("ffi")
-local mc_util = require("mc.util")
 local Section = require("mc.Section")
 
-local Chunk = {}
+---@class mc.Chunk
+---@operator call: mc.Chunk
+local Chunk = class()
 
 Chunk.defaultDataVersion = 3578  -- 1.20.2
 
 function Chunk:new()
-	local chunk = setmetatable({}, self)
-	self.__index = self
+	self.sections = {}
+end
 
-	chunk.sections = {}
+---@param p ffi.cdata*
+---@param size integer
+function Chunk:read(p, size)
+	local chunk_nbt = nbt.decode(p)
+	self.tag = chunk_nbt
+	self:readSections()
+end
 
-	return chunk
+---@param p ffi.cdata*
+---@param size integer
+function Chunk:write(p, size)
+	local _size = nbt.encode(p, "compound", self.tag)
+	return _size
 end
 
 function Chunk:getPosition()
-	local t = self.nbt
+	local t = self.tag
 	return t.xPos, t.yPos, t.zPos
 end
 
 function Chunk:init(cx, cz)
 	local chunk_nbt = {{}}
-	self.nbt = chunk_nbt
+	self.tag = chunk_nbt
 
 	nbt.set(chunk_nbt, "DataVersion", self.defaultDataVersion, "int")
 	nbt.set(chunk_nbt, "Status", "full", "string")
@@ -34,39 +44,15 @@ function Chunk:init(cx, cz)
 	nbt.set(chunk_nbt, "sections", {tag_id = "compound"}, "list")
 end
 
-function Chunk:decode(p)
-	local length = byte.read_uint32_be(p)
-	local compression_type = byte.read_uint8(p + 4)
-	assert(compression_type == 2)
-
-	local chunk_nbt_ptr, chunk_nbt_size = mc_util.uncompress(p + 5, length - 1)
-	local chunk_nbt = nbt.decode(chunk_nbt_ptr)
-	self.nbt = chunk_nbt
-
+function Chunk:readSections()
 	local sections = {}
 	self.sections = sections
 
-	for i, section in ipairs(self.nbt.sections) do
+	for i, section in ipairs(self.tag.sections) do
 		local _section = Section:new()
 		_section.nbt = section
 		sections[section.Y] = _section
 	end
-end
-
-function Chunk:encode(p)
-	local size = nbt.encode(p, "compound", self.nbt)
-	local chunk_nbt_ptr, chunk_nbt_size = mc_util.compress(p, size)
-
-	byte.write_uint32_be(p, chunk_nbt_size + 1)
-	byte.write_uint8(p + 4, 2)
-	ffi.copy(p + 5, chunk_nbt_ptr, chunk_nbt_size)
-
-	return 5 + chunk_nbt_size
-end
-
-function Chunk:encode_bound()
-	local size = nbt.size("compound", self.nbt)
-	return 5 + mc_util.compress_bound(size)
 end
 
 function Chunk:getSection(sy)
@@ -77,7 +63,7 @@ function Chunk:setSection(section)
 	local section_nbt = section.nbt
 	self.sections[section_nbt.Y] = section
 
-	local sections = self.nbt.sections
+	local sections = self.tag.sections
 	for i, _section_nbt in ipairs(sections) do
 		if _section_nbt.Y == section_nbt.Y then
 			sections[i] = section_nbt
@@ -128,8 +114,7 @@ end
 
 function Chunk:getHeight(x, z, bits, name)
 	local index = z % 16 * 16 + x % 16
-	-- return Section.get_data_index(self.nbt.Heightmaps[name], bits, index)
-	return Section.get_data_index(self.nbt.Heightmaps[name], bits, index) + self.nbt.yPos * 16 - 2
+	return Section.get_data_index(self.tag.Heightmaps[name], bits, index) + self.tag.yPos * 16 - 2
 end
 
 return Chunk
