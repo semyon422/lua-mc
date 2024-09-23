@@ -1,15 +1,18 @@
+local class = require("class")
+local bit = require("bit")
 local nbt = require("mc.nbt")
 
-local Section = {}
+---@class mc.Section
+---@operator call: mc.Section
+local Section = class()
 
 function Section:new()
-	local section = setmetatable({}, self)
-	self.__index = self
-	return section
+	self.block_palette_cache = {}
+	self.biome_palette_cache = {}
 end
 
 function Section:getY()
-	return self.nbt.Y
+	return self.tag.Y
 end
 
 local bits_cache = {}
@@ -25,9 +28,9 @@ local function get_palette_bits(size, min)
 	return bits_cache[size]
 end
 
-local function create_block_states(section_nbt, block_states)
+local function create_block_states(section_tag, block_states)
 	block_states = block_states or {{}}
-	nbt.set(section_nbt, "block_states", block_states, "compound")
+	nbt.set(section_tag, "block_states", block_states, "compound")
 
 	local data = {}
 	for i = 1, 256 do
@@ -44,9 +47,9 @@ local function create_block_states(section_nbt, block_states)
 	return block_states
 end
 
-local function create_biomes(section_nbt, biomes)
+local function create_biomes(section_tag, biomes)
 	biomes = biomes or {{}}
-	nbt.set(section_nbt, "biomes", biomes, "compound")
+	nbt.set(section_tag, "biomes", biomes, "compound")
 
 	local data = {0LL, 0LL}
 
@@ -113,10 +116,16 @@ local function rearrange_states(root, states, bits, new_bits)
 	nbt.set(root, "data", new_data, "long_array")
 end
 
-local function add_palette_index(root, obj, states, min_bits)
+local function add_palette_index(root, obj, states, min_bits, palette_cache)
+	local cached_index = palette_cache[obj]
+	if cached_index then
+		return cached_index
+	end
+
 	local palette = root.palette
 	for i, _obj in ipairs(palette) do
 		if nbt.equal(obj, _obj) then
+			palette_cache[obj] = i
 			return i
 		end
 	end
@@ -128,20 +137,21 @@ local function add_palette_index(root, obj, states, min_bits)
 		rearrange_states(root, states, bits, new_bits)
 	end
 
+	palette_cache[obj] = #palette
 	return #palette
 end
 
 function Section:init(cy)
-	local section_nbt = {{}}
-	self.nbt = section_nbt
+	local section_tag = {{}}
+	self.tag = section_tag
 
-	nbt.set(section_nbt, "Y", cy, "byte")
-	create_block_states(section_nbt)
-	create_biomes(section_nbt)
+	nbt.set(section_tag, "Y", cy, "byte")
+	create_block_states(section_tag)
+	create_biomes(section_tag)
 end
 
 function Section:getBlock(x, y, z)
-	local block_states = self.nbt.block_states
+	local block_states = self.tag.block_states
 	if not block_states then
 		return
 	end
@@ -151,18 +161,37 @@ function Section:getBlock(x, y, z)
 end
 
 function Section:setBlock(x, y, z, block_state)
-	local block_states = self.nbt.block_states
-
-	local bs_type = nbt.type(block_state)
-	assert(bs_type == "compound", "compound expected, got " .. bs_type)
-
-	local block_state_index = add_palette_index(block_states, block_state, 4096, 4)
+	local block_states = self.tag.block_states
+	local block_state_index = add_palette_index(block_states, block_state, 4096, 4, self.block_palette_cache)
 	local index = (y % 16) * 256 + z % 16 * 16 + x % 16
 	set_data_index(block_states.data, get_palette_bits(#block_states.palette, 4), index, block_state_index)
 end
 
+function Section:mapBlock(sx, sz, f)
+	local block_states = self.tag.block_states
+	local palette_cache = self.block_palette_cache
+	local data = block_states.data
+	local palette = block_states.palette
+
+	local sy = self.tag.Y
+
+	local index = 0
+	for y = 0, 15 do
+		for z = 0, 15 do
+			for x = 0, 15 do
+				local block_state = f(sx * 16 + x, sy * 16 + y, sz * 16 + z)
+				if block_state then
+					local block_state_index = add_palette_index(block_states, block_state, 4096, 4, palette_cache)
+					set_data_index(data, get_palette_bits(#palette, 4), index, block_state_index)
+				end
+				index = index + 1
+			end
+		end
+	end
+end
+
 function Section:getBiome(x, y, z)
-	local biomes = self.nbt.biomes
+	local biomes = self.tag.biomes
 	if not biomes then
 		return
 	end
@@ -172,8 +201,8 @@ function Section:getBiome(x, y, z)
 end
 
 function Section:setBiome(x, y, z, biome)
-	local biomes = self.nbt.biomes
-	local biome_index = add_palette_index(biomes, biome, 64, 0)
+	local biomes = self.tag.biomes
+	local biome_index = add_palette_index(biomes, biome, 64, 0, self.biome_palette_cache)
 	local index = math.floor(y % 16 / 4) * 16 + math.floor(z % 16 / 4) * 4 + math.floor(x % 16 / 4)
 	set_data_index(biomes.data, get_palette_bits(#biomes.palette, 0), index, biome_index)
 end

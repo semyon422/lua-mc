@@ -20,8 +20,8 @@ end
 ---@param rx integer
 ---@param rz integer
 function RawRegion:setPos(rx, rz)
-	self.x = rx
-	self.z = rz
+	self.rx = rx
+	self.rz = rz
 end
 
 ---@param p ffi.cdata*
@@ -44,7 +44,7 @@ end
 ---@return true?
 ---@return string?
 function RawRegion:read()
-	local path = mc_util.get_region_path(self.path, self.x, self.z)
+	local path = mc_util.get_region_path(self.path, self.rx, self.rz)
 	local file, err = io.open(path, "rb")
 	if not file then
 		return nil, err
@@ -58,7 +58,6 @@ function RawRegion:read()
 	end
 
 	self:setPointer(ffi.cast("const uint8_t*", self.data), #self.data)
-	self.pointer = ffi.cast("const uint8_t*", self.data)
 
 	return true
 end
@@ -72,7 +71,7 @@ function RawRegion:write()
 		end
 	end
 
-	local path = mc_util.get_region_path(self.path, self.x, self.z)
+	local path = mc_util.get_region_path(self.path, self.rx, self.rz)
 	local file = assert(io.open(path, "wb"))
 	file:write(ffi.string(self.pointer, sector_offset * 0x1000))
 	file:close()
@@ -96,7 +95,7 @@ end
 ---@param index integer
 ---@return mc.RawChunk?
 ---@return mc.ChunkInfo?
-function RawRegion:getRawChunk(index)
+function RawRegion:getRawChunkIndex(index)
 	local chunk_info = self:getChunkInfo(index)
 	if not chunk_info then
 		return
@@ -108,6 +107,15 @@ function RawRegion:getRawChunk(index)
 	return raw_chunk, chunk_info
 end
 
+---@param cx integer
+---@param cz integer
+---@return mc.RawChunk?
+---@return mc.ChunkInfo?
+function RawRegion:getRawChunk(cx, cz)
+	local index = mc_util.get_chunk_index(cx % 32, cz % 32)
+	return self:getRawChunkIndex(index)
+end
+
 ---@param chunk_info mc.ChunkInfo
 ---@param raw_chunk mc.RawChunk
 function RawRegion:setRawChunk(chunk_info, raw_chunk)
@@ -116,7 +124,7 @@ function RawRegion:setRawChunk(chunk_info, raw_chunk)
 end
 
 ---@param raw_chunk mc.RawChunk
-function RawRegion:addRawChunk(index, raw_chunk)
+function RawRegion:addRawChunkIndex(index, raw_chunk)
 	local chunk_info = ChunkInfo(index)
 	chunk_info.sector_offset = self.sector_offset
 	chunk_info.sectors = raw_chunk:getSectors()
@@ -125,6 +133,14 @@ function RawRegion:addRawChunk(index, raw_chunk)
 	self.sector_offset = self.sector_offset + chunk_info.sectors
 
 	self:setRawChunk(chunk_info, raw_chunk)
+end
+
+---@param cx integer
+---@param cz integer
+---@param raw_chunk mc.RawChunk
+function RawRegion:addRawChunk(cx, cz, raw_chunk)
+	local index = mc_util.get_chunk_index(cx % 32, cz % 32)
+	return self:addRawChunkIndex(index, raw_chunk)
 end
 
 return RawRegion
